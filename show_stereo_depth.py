@@ -71,11 +71,10 @@ def visualize_stereo_depth():
     baseline = cam._baseline_mm
     show_stats = False
     
-    print("\nYou should see 4 views in a single window:")
-    print("  1. TOP-LEFT: Left camera view")
-    print("  2. TOP-RIGHT: Right camera view (notice slight parallax)")
-    print("  3. BOTTOM-LEFT: Depth map (white=close, black=far)")
-    print("  4. BOTTOM-RIGHT: 3D point cloud top-down view")
+    print("\nYou should see 3 views in a single row:")
+    print("  1. LEFT: Right camera view")
+    print("  2. MIDDLE: Depth map (RED=close, BLUE=far)")
+    print("  3. RIGHT: 3D point cloud top-down view")
     print(f"\nCurrent settings: Baseline={baseline*1000:.1f}mm, Focal={focal_length:.1f}px")
     
     # FPS tracking
@@ -112,8 +111,8 @@ def visualize_stereo_depth():
                 # Update camera focal length if changed
                 cam._focal_length_px = focal_length
                 
-                # Downscale for faster stereo matching (2x faster)
-                scale_factor = 0.5
+                # Downscale more aggressively for speed (4x faster)
+                scale_factor = 0.35
                 left_small = cv2.resize(left, None, fx=scale_factor, fy=scale_factor, interpolation=cv2.INTER_AREA)
                 right_small = cv2.resize(right, None, fx=scale_factor, fy=scale_factor, interpolation=cv2.INTER_AREA)
                 
@@ -150,9 +149,9 @@ def visualize_stereo_depth():
                 depth_color[~valid_depth_mask] = [0, 0, 0]
                 last_depth_color = depth_color
                 
-                # 3. Get point cloud (very high downsampling for speed)
+                # 3. Get point cloud (extreme downsampling for speed)
                 try:
-                    point_cloud = cam._depth_map_to_point_cloud(depth_map, left, downsample=20)
+                    point_cloud = cam._depth_map_to_point_cloud(depth_map, left, downsample=30)
                     pc_vis = create_point_cloud_image(point_cloud)
                     last_pc_vis = pc_vis
                 except Exception as e:
@@ -175,19 +174,16 @@ def visualize_stereo_depth():
                     valid_depth_mask = np.zeros_like(depth_map, dtype=bool)
             
             # Resize for display (smaller = faster rendering)
-            scale = 0.3
-            left_disp = cv2.resize(left, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+            scale = 0.35  # Larger since we're showing 3 views instead of 4
             right_disp = cv2.resize(right, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
             depth_small = cv2.resize(depth_color, None, fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST)
             
             # Resize point cloud to match camera views
-            pc_small = cv2.resize(pc_vis, (left_disp.shape[1], left_disp.shape[0]), interpolation=cv2.INTER_NEAREST)
+            pc_small = cv2.resize(pc_vis, (right_disp.shape[1], right_disp.shape[0]), interpolation=cv2.INTER_NEAREST)
             
             # Add labels and info
-            cv2.putText(left_disp, "LEFT CAMERA", (10, 20),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
             cv2.putText(right_disp, "RIGHT CAMERA", (10, 20),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
             
             # Calculate FPS
             frame_count += 1
@@ -212,15 +208,13 @@ def visualize_stereo_depth():
             
             # FPS and focal length info
             cv2.putText(pc_small, f"F: {focal_length:.0f}px (+/-) FPS: {fps}", (10, 20),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
             
-            # Stack in 2x2 grid
-            row1 = np.hstack([left_disp, right_disp])
-            row2 = np.hstack([depth_small, pc_small])
-            combined = np.vstack([row1, row2])
+            # Stack in 1x3 layout (right camera, depth, point cloud)
+            combined = np.hstack([right_disp, depth_small, pc_small])
             
-            # Show single window with all 4 views
-            cv2.imshow('Stereo Vision - 4 Views', combined)
+            # Show single window with 3 views
+            cv2.imshow('Stereo Vision - Camera | Depth | Point Cloud', combined)
             
             # Handle keyboard input
             key = cv2.waitKey(1) & 0xFF
