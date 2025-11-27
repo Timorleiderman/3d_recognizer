@@ -26,7 +26,7 @@ class StereoCamera(Camera):
             camera_index: int = 0,
             width: int = 2560,
             height: int = 720,
-            baseline_mm: float = 60.0,  # GXIVISION typical baseline
+            baseline_mm: float = 85.0,  # Measured: 8.5cm baseline
             focal_length_px: float = 350.0,  # Optimized for 2.4mm 125° lens
     ):
         """
