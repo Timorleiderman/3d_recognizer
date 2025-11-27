@@ -81,20 +81,42 @@ class StereoCamera(Camera):
         """Start capturing from stereo camera"""
         if self._running:
             return
-            
-        self._cap = cv2.VideoCapture(self._camera_index)
+        
+        # Try opening with explicit backend that supports format setting
+        # CAP_V4L2 is better for format control on Linux
+        try:
+            self._cap = cv2.VideoCapture(self._camera_index, cv2.CAP_V4L2)
+        except:
+            self._cap = cv2.VideoCapture(self._camera_index)
         
         if not self._cap.isOpened():
             raise Exception(f"Could not open stereo camera at index {self._camera_index}")
         
         # Set format BEFORE setting resolution (critical for GXIVISION)
         # MJPEG format supports 2560x720 @ 30fps
-        self._cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M','J','P','G'))
+        fourcc = cv2.VideoWriter_fourcc('M','J','P','G')
+        self._cap.set(cv2.CAP_PROP_FOURCC, fourcc)
         
         # Now set resolution and framerate
         self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._width)
         self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._height)
         self._cap.set(cv2.CAP_PROP_FPS, 30)
+        
+        # Sometimes need to release and reopen for settings to take effect
+        # Try reading a test frame first
+        ret, test_frame = self._cap.read()
+        if ret:
+            test_height, test_width = test_frame.shape[:2]
+            if test_width != self._width:
+                print(f"First attempt got {test_width}x{test_height}, reopening...")
+                self._cap.release()
+                
+                # Reopen and set again
+                self._cap = cv2.VideoCapture(self._camera_index, cv2.CAP_V4L2)
+                self._cap.set(cv2.CAP_PROP_FOURCC, fourcc)
+                self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._width)
+                self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._height)
+                self._cap.set(cv2.CAP_PROP_FPS, 30)
         
         # Verify resolution
         actual_width = int(self._cap.get(cv2.CAP_PROP_FRAME_WIDTH))
