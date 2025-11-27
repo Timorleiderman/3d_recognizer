@@ -85,7 +85,7 @@ def visualize_stereo_depth():
     fps = 0
     
     # Skip frames for faster display (process every Nth frame)
-    frame_skip = 2  # Process every 2nd frame
+    frame_skip = 3  # Process every 3rd frame (faster default)
     frame_counter = 0
     
     # Cache last results
@@ -236,9 +236,16 @@ def visualize_stereo_depth():
                 focal_length = 350.0
                 print(f"Reset focal length: {focal_length:.0f}px")
             elif key == ord('f'):
-                # Toggle frame skip
-                frame_skip = 1 if frame_skip == 2 else 2
-                print(f"Frame skip: {frame_skip} (faster)" if frame_skip == 2 else "Frame skip: 1 (slower, better)")
+                # Cycle through frame skip modes
+                if frame_skip == 1:
+                    frame_skip = 3
+                    print("Frame skip: 3 (faster)")
+                elif frame_skip == 3:
+                    frame_skip = 5
+                    print("Frame skip: 5 (fastest)")
+                else:
+                    frame_skip = 1
+                    print("Frame skip: 1 (best quality, slower)")
             elif key == ord('d'):
                 show_stats = not show_stats
                 if show_stats:
