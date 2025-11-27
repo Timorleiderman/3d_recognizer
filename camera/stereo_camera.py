@@ -26,8 +26,8 @@ class StereoCamera(Camera):
             camera_index: int = 0,
             width: int = 2560,
             height: int = 720,
-            baseline_mm: float = 60.0,  # Adjust based on your camera's baseline
-            focal_length_px: float = 700.0,  # Approximate, needs calibration
+            baseline_mm: float = 60.0,  # GXIVISION typical baseline
+            focal_length_px: float = 350.0,  # Optimized for 2.4mm 125° lens
     ):
         """
         Initialize stereo camera
@@ -53,20 +53,20 @@ class StereoCamera(Camera):
         
     def _setup_stereo_matcher(self):
         """Configure stereo block matching for depth computation"""
-        # Optimized for Jetson Nano performance
+        # Optimized for GXIVISION 2.4mm 125° lens - faster processing
         # Using StereoBM (faster) instead of SGBM
-        self._stereo = cv2.StereoBM_create(numDisparities=64, blockSize=15)
+        self._stereo = cv2.StereoBM_create(numDisparities=48, blockSize=11)
         
-        # Tune parameters for speed vs quality balance
+        # Tune parameters for speed on wide-angle lens
         self._stereo.setMinDisparity(0)
-        self._stereo.setNumDisparities(64)  # Reduced from 128 for speed
-        self._stereo.setBlockSize(15)  # Reasonable for speed
-        self._stereo.setSpeckleWindowSize(50)
-        self._stereo.setSpeckleRange(32)
-        self._stereo.setDisp12MaxDiff(5)
+        self._stereo.setNumDisparities(48)  # Reduced for speed with wide lens
+        self._stereo.setBlockSize(11)  # Smaller block for faster processing
+        self._stereo.setSpeckleWindowSize(40)  # Reduced for speed
+        self._stereo.setSpeckleRange(16)  # Tighter filtering
+        self._stereo.setDisp12MaxDiff(3)
         self._stereo.setPreFilterCap(31)
-        self._stereo.setTextureThreshold(10)
-        self._stereo.setUniquenessRatio(5)
+        self._stereo.setTextureThreshold(5)  # Lower for wide-angle
+        self._stereo.setUniquenessRatio(10)  # Higher for better quality
         
         # Alternative: Use StereoSGBM for better quality (slower)
         # self._stereo = cv2.StereoSGBM_create(
