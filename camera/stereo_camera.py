@@ -87,23 +87,13 @@ class StereoCamera(Camera):
         if not self._cap.isOpened():
             raise Exception(f"Could not open stereo camera at index {self._camera_index}")
         
-        # Try different methods to set stereo resolution
-        # Some cameras need FOURCC format or specific backend
-        
-        # Method 1: Try setting resolution directly
-        self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._width)
-        self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._height)
-        
-        # Method 2: Try MJPEG format (sometimes needed for high resolution)
+        # Set format BEFORE setting resolution (critical for GXIVISION)
+        # MJPEG format supports 2560x720 @ 30fps
         self._cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M','J','P','G'))
+        
+        # Now set resolution and framerate
         self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._width)
         self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._height)
-        
-        # Method 3: Try YUYV format
-        self._cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('Y','U','Y','V'))
-        self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._width)
-        self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._height)
-        
         self._cap.set(cv2.CAP_PROP_FPS, 30)
         
         # Verify resolution
