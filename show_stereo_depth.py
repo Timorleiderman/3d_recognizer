@@ -89,14 +89,15 @@ def visualize_stereo_depth():
             disparity_vis = disparity_vis.astype(np.uint8)
             disparity_color = cv2.applyColorMap(disparity_vis, cv2.COLORMAP_JET)
             
-            # 2. Actual depth map visualization
+            # 2. Actual depth map visualization (grayscale)
             depth_vis = np.zeros_like(depth_map)
             valid_depth = depth_map > 0
             if valid_depth.any():
                 depth_vis[valid_depth] = depth_map[valid_depth]
                 depth_vis = cv2.normalize(depth_vis, None, 0, 255, cv2.NORM_MINMAX)
             depth_vis = depth_vis.astype(np.uint8)
-            depth_color = cv2.applyColorMap(depth_vis, cv2.COLORMAP_TURBO)
+            # Convert grayscale to BGR for consistent stacking
+            depth_color = cv2.cvtColor(depth_vis, cv2.COLOR_GRAY2BGR)
             
             # 3. Get point cloud
             try:
