@@ -77,66 +77,101 @@ def visualize_stereo_depth():
     print("  4. BOTTOM-RIGHT: 3D point cloud top-down view")
     print(f"\nCurrent settings: Baseline={baseline*1000:.1f}mm, Focal={focal_length:.1f}px")
     
+    # FPS tracking
+    import time
+    frame_count = 0
+    fps_time = time.time()
+    fps = 0
+    
+    # Skip frames for faster display (process every Nth frame)
+    frame_skip = 2  # Process every 2nd frame
+    frame_counter = 0
+    
+    # Cache last results
+    last_depth_map = None
+    last_pc_vis = None
+    last_depth_color = None
+    
     while True:
+        frame_counter += 1
         try:
             # Get raw frame
             ret, frame = cam._cap.read()
             if not ret:
                 continue
             
-            # Split stereo pair
+            # Split stereo pair (always needed for display)
             left, right = cam._split_stereo_image(frame)
             
-            # Update camera focal length if changed
-            cam._focal_length_px = focal_length
+            # Skip depth computation on some frames for speed
+            compute_depth = (frame_counter % frame_skip == 0)
             
-            # Downscale for faster stereo matching (2x faster)
-            scale_factor = 0.5
-            left_small = cv2.resize(left, None, fx=scale_factor, fy=scale_factor, interpolation=cv2.INTER_AREA)
-            right_small = cv2.resize(right, None, fx=scale_factor, fy=scale_factor, interpolation=cv2.INTER_AREA)
-            
-            # Compute depth at lower resolution
-            depth_map_small = cam._compute_depth_map(left_small, right_small)
-            
-            # Upscale depth map back to original size
-            depth_map = cv2.resize(depth_map_small, (left.shape[1], left.shape[0]), interpolation=cv2.INTER_NEAREST)
-            # Adjust depth values for scale
-            depth_map *= (1.0 / scale_factor)
-            
-            # Create visualizations
-            # Note: We already computed depth_map which includes disparity computation
-            # No need to recompute disparity separately
-            
-            # 2. Better depth map visualization with automatic range adjustment
-            depth_vis = depth_map.copy()
-            valid_depth_mask = depth_map > 0
-            
-            if valid_depth_mask.any():
-                # Clip to reasonable range (0.2m - 3.0m)
-                depth_vis = np.clip(depth_vis, 0.2, 3.0)
-                # Invert: closer = brighter (more intuitive)
-                depth_vis = 3.0 - depth_vis
-                # Normalize only valid regions
-                depth_vis = cv2.normalize(depth_vis, None, 0, 255, cv2.NORM_MINMAX)
-                # Mask out invalid regions
-                depth_vis[~valid_depth_mask] = 0
+            # Compute depth only on selected frames
+            if compute_depth:
+                # Update camera focal length if changed
+                cam._focal_length_px = focal_length
+                
+                # Downscale for faster stereo matching (2x faster)
+                scale_factor = 0.5
+                left_small = cv2.resize(left, None, fx=scale_factor, fy=scale_factor, interpolation=cv2.INTER_AREA)
+                right_small = cv2.resize(right, None, fx=scale_factor, fy=scale_factor, interpolation=cv2.INTER_AREA)
+                
+                # Compute depth at lower resolution
+                depth_map_small = cam._compute_depth_map(left_small, right_small)
+                
+                # Upscale depth map back to original size
+                depth_map = cv2.resize(depth_map_small, (left.shape[1], left.shape[0]), interpolation=cv2.INTER_NEAREST)
+                # Adjust depth values for scale
+                depth_map *= (1.0 / scale_factor)
+                last_depth_map = depth_map
+                
+                # Create visualizations
+                # 2. Better depth map visualization with automatic range adjustment
+                depth_vis = depth_map.copy()
+                valid_depth_mask = depth_map > 0
+                
+                if valid_depth_mask.any():
+                    # Clip to reasonable range (0.2m - 3.0m)
+                    depth_vis = np.clip(depth_vis, 0.2, 3.0)
+                    # Invert: closer = brighter (more intuitive)
+                    depth_vis = 3.0 - depth_vis
+                    # Normalize only valid regions
+                    depth_vis = cv2.normalize(depth_vis, None, 0, 255, cv2.NORM_MINMAX)
+                    # Mask out invalid regions
+                    depth_vis[~valid_depth_mask] = 0
+                else:
+                    depth_vis = np.zeros_like(depth_map)
+                
+                depth_vis = depth_vis.astype(np.uint8)
+                # Apply color map for better visibility
+                depth_color = cv2.applyColorMap(depth_vis, cv2.COLORMAP_TURBO)
+                # Black out invalid regions
+                depth_color[~valid_depth_mask] = [0, 0, 0]
+                last_depth_color = depth_color
+                
+                # 3. Get point cloud (very high downsampling for speed)
+                try:
+                    point_cloud = cam._depth_map_to_point_cloud(depth_map, left, downsample=20)
+                    pc_vis = create_point_cloud_image(point_cloud)
+                    last_pc_vis = pc_vis
+                except Exception as e:
+                    pc_vis = np.zeros((360, 640, 3), dtype=np.uint8)
+                    cv2.putText(pc_vis, f"Error: {str(e)[:40]}", (10, 180),
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+                    last_pc_vis = pc_vis
             else:
-                depth_vis = np.zeros_like(depth_map)
-            
-            depth_vis = depth_vis.astype(np.uint8)
-            # Apply color map for better visibility
-            depth_color = cv2.applyColorMap(depth_vis, cv2.COLORMAP_TURBO)
-            # Black out invalid regions
-            depth_color[~valid_depth_mask] = [0, 0, 0]
-            
-            # 3. Get point cloud (very high downsampling for speed)
-            try:
-                point_cloud = cam._depth_map_to_point_cloud(depth_map, left, downsample=20)
-                pc_vis = create_point_cloud_image(point_cloud)
-            except Exception as e:
-                pc_vis = np.zeros((360, 640, 3), dtype=np.uint8)
-                cv2.putText(pc_vis, f"Error: {str(e)[:40]}", (10, 180),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+                # Reuse last computation
+                if last_depth_map is not None:
+                    depth_map = last_depth_map
+                    depth_color = last_depth_color
+                    pc_vis = last_pc_vis
+                    valid_depth_mask = depth_map > 0
+                else:
+                    # First frame, create empty
+                    depth_map = np.zeros((left.shape[0], left.shape[1]), dtype=np.float32)
+                    depth_color = np.zeros((left.shape[0], left.shape[1], 3), dtype=np.uint8)
+                    pc_vis = np.zeros((360, 640, 3), dtype=np.uint8)
+                    valid_depth_mask = np.zeros_like(depth_map, dtype=bool)
             
             # Resize for display (smaller = faster rendering)
             scale = 0.3
