@@ -88,10 +88,9 @@ def visualize_stereo_depth():
     baseline = cam._baseline_mm
     show_stats = False
     
-    print("\nYou should see:")
-    print("  TOP: Camera view (larger)")
-    print("  BOTTOM-LEFT: Depth map (RED=close, BLUE=far)")
-    print("  BOTTOM-RIGHT: 3D point cloud side view")
+    print("\nYou should see 2 views side-by-side:")
+    print("  LEFT: Depth map (RED=close, BLUE=far)")
+    print("  RIGHT: 3D point cloud side view")
     print(f"\nCurrent settings: Baseline={baseline*1000:.1f}mm, Focal={focal_length:.1f}px")
     
     # FPS tracking
@@ -190,22 +189,14 @@ def visualize_stereo_depth():
                     pc_vis = np.zeros((360, 640, 3), dtype=np.uint8)
                     valid_depth_mask = np.zeros_like(depth_map, dtype=bool)
             
-            # Resize for display
-            scale = 0.5  # Larger camera view on top
-            right_disp = cv2.resize(right, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+            # Resize for display - only depth and point cloud (larger now)
+            scale = 0.7  # Larger views without camera
+            depth_small = cv2.resize(depth_color, None, fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST)
             
-            # Bottom views should be same size and half the camera width each
-            scale_bottom = 0.5
-            depth_small = cv2.resize(depth_color, None, fx=scale_bottom, fy=scale_bottom, interpolation=cv2.INTER_NEAREST)
-            
-            # Make point cloud same height as depth, width to match half of camera
+            # Make point cloud same size as depth
             pc_height = depth_small.shape[0]
             pc_width = depth_small.shape[1]
             pc_small = cv2.resize(pc_vis, (pc_width, pc_height), interpolation=cv2.INTER_NEAREST)
-            
-            # Add labels and info
-            cv2.putText(right_disp, "RIGHT CAMERA", (10, 20),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
             
             # Calculate FPS
             frame_count += 1
@@ -220,36 +211,28 @@ def visualize_stereo_depth():
                 min_d, max_d = valid_depth.min(), valid_depth.max()
                 coverage = 100.0 * len(valid_depth) / depth_map.size
                 depth_info = f"{min_d:.2f}-{max_d:.2f}m ({coverage:.0f}%)"
-                cv2.putText(depth_small, depth_info, (10, 20),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
-                cv2.putText(depth_small, "RED=close BLUE=far", (10, 35),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 255, 255), 1)
+                cv2.putText(depth_small, depth_info, (10, 30),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+                cv2.putText(depth_small, "RED=close BLUE=far", (10, 55),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
             else:
-                cv2.putText(depth_small, "No depth - improve light", (10, 20),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
+                cv2.putText(depth_small, "No depth - improve light", (10, 30),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
             
-            # Add FPS info to camera view
-            cv2.putText(right_disp, f"FPS: {fps}", (right_disp.shape[1] - 100, 30),
+            # Add FPS and focal length info
+            cv2.putText(depth_small, f"FPS: {fps}", (depth_small.shape[1] - 100, 30),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+            cv2.putText(pc_small, f"Focal: {focal_length:.0f}px (+/-)", (10, 30),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
             
-            # Add labels to help identify views
-            cv2.putText(depth_small, "DEPTH MAP", (depth_small.shape[1]//2 - 50, depth_small.shape[0] - 10),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-            cv2.putText(pc_small, "POINT CLOUD", (10, pc_small.shape[0] - 10),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-            cv2.putText(pc_small, f"Focal: {focal_length:.0f}px", (10, 20),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+            # Add labels at bottom
+            cv2.putText(depth_small, "DEPTH MAP", (depth_small.shape[1]//2 - 80, depth_small.shape[0] - 15),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+            cv2.putText(pc_small, "POINT CLOUD", (pc_small.shape[1]//2 - 90, pc_small.shape[0] - 15),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
             
-            # Stack layout: camera on top, depth and point cloud side-by-side below
-            # First stack depth and point cloud horizontally
-            bottom_row = np.hstack([depth_small, pc_small])
-            
-            # Adjust bottom row width to exactly match camera width
-            if bottom_row.shape[1] != right_disp.shape[1]:
-                bottom_row = cv2.resize(bottom_row, (right_disp.shape[1], bottom_row.shape[0]), interpolation=cv2.INTER_NEAREST)
-            
-            # Stack camera on top, bottom row below
-            combined = np.vstack([right_disp, bottom_row])
+            # Stack depth and point cloud side-by-side
+            combined = np.hstack([depth_small, pc_small])
             
             # Show single window
             cv2.imshow('Stereo Vision', combined)
