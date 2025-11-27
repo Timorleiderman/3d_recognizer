@@ -189,8 +189,8 @@ def visualize_stereo_depth():
                     pc_vis = np.zeros((360, 640, 3), dtype=np.uint8)
                     valid_depth_mask = np.zeros_like(depth_map, dtype=bool)
             
-            # Resize for display - only depth and point cloud (larger now)
-            scale = 0.7  # Larger views without camera
+            # Resize for display - only depth and point cloud (fit to screen)
+            scale = 0.45  # Adjusted to fit screen side-by-side
             depth_small = cv2.resize(depth_color, None, fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST)
             
             # Make point cloud same size as depth
