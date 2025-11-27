@@ -31,7 +31,13 @@ def auto_connect_camera() -> Camera:
     # We need to try setting the resolution first to detect stereo capability
     try:
         import cv2
-        cap = cv2.VideoCapture(0)
+        
+        # Try V4L2 backend first (better format control on Linux)
+        try:
+            cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
+        except:
+            cap = cv2.VideoCapture(0)
+            
         if cap.isOpened():
             # Get initial resolution
             initial_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -43,16 +49,20 @@ def auto_connect_camera() -> Camera:
             cap.set(cv2.CAP_PROP_FOURCC, fourcc)
             cap.set(cv2.CAP_PROP_FRAME_WIDTH, 2560)
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+            cap.set(cv2.CAP_PROP_FPS, 30)
             
             # Check if stereo resolution was accepted
             width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            
+            print(f"Camera detection: initial={initial_width}x{initial_height}, after_config={width}x{height}")
+            
             cap.release()
             
             # If camera accepted 2560x720, it's a stereo camera
             if width >= 2560 and height == 720:
-                print(f"Detected stereo camera: {width}x{height}")
-                print("Using real depth from stereo vision")
+                print(f"✓ Detected stereo camera: {width}x{height}")
+                print("✓ Using real depth from stereo vision")
                 return StereoCamera("Stereo Camera", camera_index=0, 
                                    width=width, height=height)
             else:
