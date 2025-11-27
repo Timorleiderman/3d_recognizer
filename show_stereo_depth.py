@@ -194,13 +194,13 @@ def visualize_stereo_depth():
             scale = 0.5  # Larger camera view on top
             right_disp = cv2.resize(right, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
             
-            # Smaller views for depth and point cloud
+            # Bottom views should be same size and half the camera width each
             scale_bottom = 0.5
             depth_small = cv2.resize(depth_color, None, fx=scale_bottom, fy=scale_bottom, interpolation=cv2.INTER_NEAREST)
             
-            # Match width of camera view for point cloud
-            pc_width = right_disp.shape[1] // 2
+            # Make point cloud same height as depth, width to match half of camera
             pc_height = depth_small.shape[0]
+            pc_width = depth_small.shape[1]
             pc_small = cv2.resize(pc_vis, (pc_width, pc_height), interpolation=cv2.INTER_NEAREST)
             
             # Add labels and info
