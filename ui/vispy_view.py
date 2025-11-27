@@ -94,8 +94,8 @@ class VispyView:
 
         self.view.camera._quaternion = Quaternion(0.707, 0.707, 0.0, 0.0)
         self.view.camera.depth_value = 1.0
-        # Set initial scale factor for better initial zoom (larger = more zoomed in)
-        self.view.camera.scale_factor = 0.15  # Zoom in at startup
+        # Set initial scale factor to fit view nicely
+        self.view.camera.scale_factor = 0.5  # Balanced zoom level
         self.view.camera.view_changed()
 
         if allow_annotation:
