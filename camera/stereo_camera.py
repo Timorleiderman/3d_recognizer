@@ -53,20 +53,20 @@ class StereoCamera(Camera):
         
     def _setup_stereo_matcher(self):
         """Configure stereo block matching for depth computation"""
-        # Using StereoSGBM for better quality with GXIVISION camera
-        self._stereo = cv2.StereoSGBM_create(
-            minDisparity=0,
-            numDisparities=128,  # Higher for more depth resolution
-            blockSize=5,
-            P1=8 * 3 * 5**2,
-            P2=32 * 3 * 5**2,
-            disp12MaxDiff=1,
-            uniquenessRatio=5,   # Lower = more permissive
-            speckleWindowSize=50,
-            speckleRange=32,
-            preFilterCap=63,
-            mode=cv2.STEREO_SGBM_MODE_SGBM_3WAY
-        )
+        # Optimized for Jetson Nano performance
+        # Using StereoBM (faster) instead of SGBM
+        self._stereo = cv2.StereoBM_create(numDisparities=64, blockSize=15)
+        
+        # Tune parameters for speed vs quality balance
+        self._stereo.setMinDisparity(0)
+        self._stereo.setNumDisparities(64)  # Reduced from 128 for speed
+        self._stereo.setBlockSize(15)  # Reasonable for speed
+        self._stereo.setSpeckleWindowSize(50)
+        self._stereo.setSpeckleRange(32)
+        self._stereo.setDisp12MaxDiff(5)
+        self._stereo.setPreFilterCap(31)
+        self._stereo.setTextureThreshold(10)
+        self._stereo.setUniquenessRatio(5)
         
         # Alternative: Use StereoSGBM for better quality (slower)
         # self._stereo = cv2.StereoSGBM_create(
@@ -334,8 +334,8 @@ class StereoCamera(Camera):
         # else:
         #     print("  Depth map: No valid depth pixels!")
         
-        # Convert to point cloud
-        point_cloud = self._depth_map_to_point_cloud(depth_map, left, downsample=4)
+        # Convert to point cloud (downsample=8 for better Jetson Nano performance)
+        point_cloud = self._depth_map_to_point_cloud(depth_map, left, downsample=8)
         
         self._last_cloud = point_cloud
         
