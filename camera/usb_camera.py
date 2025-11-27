@@ -5,6 +5,7 @@ This adapter creates a simulated point cloud from the 2D image for testing purpo
 For production use, you need a depth camera like Intel RealSense.
 """
 
+from typing import List
 import numpy as np
 import cv2
 from .base_camera import Camera
@@ -136,7 +137,7 @@ class USBCamera(Camera):
         return point_cloud
 
 
-def list_usb_cameras(max_test: int = 10) -> list[int]:
+def list_usb_cameras(max_test: int = 10) -> List[int]:
     """
     List available USB camera indices.
     

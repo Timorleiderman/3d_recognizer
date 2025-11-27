@@ -8,6 +8,7 @@ Frame rate: 30fps
 Features: Synchronized stereo pairs, adjustable baseline
 """
 
+from typing import Tuple, Dict, List
 import numpy as np
 import cv2
 from .base_camera import Camera
@@ -120,7 +121,7 @@ class StereoCamera(Camera):
         """Check if camera is connected"""
         return self._cap is not None and self._cap.isOpened()
     
-    def _split_stereo_image(self, frame: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def _split_stereo_image(self, frame: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
         Split the combined stereo image into left and right views.
         The GXIVISION camera provides side-by-side images.
@@ -268,7 +269,7 @@ class StereoCamera(Camera):
         
         return point_cloud
     
-    def calibrate(self, num_samples: int = 10) -> dict:
+    def calibrate(self, num_samples: int = 10) -> Dict:
         """
         Perform basic calibration by analyzing several frames.
         This helps determine optimal baseline and focal length parameters.
