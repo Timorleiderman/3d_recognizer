@@ -60,12 +60,11 @@ def visualize_stereo_depth():
     cam = StereoCamera("GXIVISION", camera_index=0, width=2560, height=720)
     cam.start()
     
-    print("\nYou should see 5 windows:")
-    print("  1. LEFT: Left camera view")
-    print("  2. RIGHT: Right camera view (notice slight parallax)")
-    print("  3. DEPTH: Computed depth map (color: blue=far, red=close)")
-    print("  4. DEPTH RAW: Raw depth values visualization")
-    print("  5. POINT CLOUD: 3D point cloud top-down view")
+    print("\nYou should see 4 views in a single window:")
+    print("  1. TOP-LEFT: Left camera view")
+    print("  2. TOP-RIGHT: Right camera view (notice slight parallax)")
+    print("  3. BOTTOM-LEFT: Depth map (color: blue=far, red=close)")
+    print("  4. BOTTOM-RIGHT: 3D point cloud top-down view")
     
     while True:
         try:
@@ -112,27 +111,28 @@ def visualize_stereo_depth():
             scale = 0.5
             left_small = cv2.resize(left, None, fx=scale, fy=scale)
             right_small = cv2.resize(right, None, fx=scale, fy=scale)
-            disparity_small = cv2.resize(disparity_color, None, fx=scale, fy=scale)
             depth_small = cv2.resize(depth_color, None, fx=scale, fy=scale)
+            
+            # Resize point cloud to match camera views
+            pc_small = cv2.resize(pc_vis, (left_small.shape[1], left_small.shape[0]))
             
             # Add labels
             cv2.putText(left_small, "LEFT CAMERA", (10, 30),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
             cv2.putText(right_small, "RIGHT CAMERA", (10, 30),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-            cv2.putText(disparity_small, "DISPARITY MAP", (10, 30),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
             cv2.putText(depth_small, "DEPTH MAP (meters)", (10, 30),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+            cv2.putText(pc_small, "3D POINT CLOUD", (10, 30),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
             
-            # Stack in 2 rows
+            # Stack in 2x2 grid
             row1 = np.hstack([left_small, right_small])
-            row2 = np.hstack([disparity_small, depth_small])
+            row2 = np.hstack([depth_small, pc_small])
             combined = np.vstack([row1, row2])
             
-            # Show windows
-            cv2.imshow('Stereo Vision', combined)
-            cv2.imshow('3D Point Cloud (Top View)', pc_vis)
+            # Show single window with all 4 views
+            cv2.imshow('Stereo Vision - 4 Views', combined)
             
             key = cv2.waitKey(1) & 0xFF
             if key == ord('q'):
