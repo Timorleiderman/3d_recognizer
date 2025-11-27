@@ -97,15 +97,27 @@ def visualize_stereo_depth():
             # Note: We already computed depth_map which includes disparity computation
             # No need to recompute disparity separately
             
-            # 2. Actual depth map visualization (grayscale)
-            depth_vis = np.zeros_like(depth_map)
-            valid_depth = depth_map > 0
-            if valid_depth.any():
-                depth_vis[valid_depth] = depth_map[valid_depth]
+            # 2. Better depth map visualization with automatic range adjustment
+            depth_vis = depth_map.copy()
+            valid_depth_mask = depth_map > 0
+            
+            if valid_depth_mask.any():
+                # Clip to reasonable range (0.2m - 3.0m)
+                depth_vis = np.clip(depth_vis, 0.2, 3.0)
+                # Invert: closer = brighter (more intuitive)
+                depth_vis = 3.0 - depth_vis
+                # Normalize only valid regions
                 depth_vis = cv2.normalize(depth_vis, None, 0, 255, cv2.NORM_MINMAX)
+                # Mask out invalid regions
+                depth_vis[~valid_depth_mask] = 0
+            else:
+                depth_vis = np.zeros_like(depth_map)
+            
             depth_vis = depth_vis.astype(np.uint8)
-            # Convert grayscale to BGR for consistent stacking
-            depth_color = cv2.cvtColor(depth_vis, cv2.COLOR_GRAY2BGR)
+            # Apply color map for better visibility
+            depth_color = cv2.applyColorMap(depth_vis, cv2.COLORMAP_TURBO)
+            # Black out invalid regions
+            depth_color[~valid_depth_mask] = [0, 0, 0]
             
             # 3. Get point cloud (with higher downsampling for speed)
             try:
@@ -135,11 +147,14 @@ def visualize_stereo_depth():
             valid_depth = depth_map[depth_map > 0]
             if len(valid_depth) > 0:
                 min_d, max_d, mean_d = valid_depth.min(), valid_depth.max(), valid_depth.mean()
-                depth_info = f"Depth: {min_d:.2f}-{max_d:.2f}m (avg {mean_d:.2f}m)"
+                coverage = 100.0 * len(valid_depth) / depth_map.size
+                depth_info = f"{min_d:.2f}-{max_d:.2f}m ({coverage:.0f}%)"
                 cv2.putText(depth_small, depth_info, (10, 30),
                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+                cv2.putText(depth_small, "RED=close BLUE=far", (10, 50),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
             else:
-                cv2.putText(depth_small, "No depth data", (10, 30),
+                cv2.putText(depth_small, "No depth data - improve lighting", (10, 30),
                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
             
             # Focal length info
