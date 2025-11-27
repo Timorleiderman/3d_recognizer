@@ -104,7 +104,24 @@ class VispyView:
 
     @point_cloud.setter
     def point_cloud(self, value: np.array) -> None:
-        self._point_cloud.set_data(value-self._offset, size=0.001, face_color="red")
+        # Color points by depth for better visualization
+        if value is not None and len(value) > 0:
+            # Normalize depth (Z) to 0-1 range for coloring
+            z_values = value[:, 2]
+            z_min, z_max = z_values.min(), z_values.max()
+            if z_max > z_min:
+                z_norm = (z_values - z_min) / (z_max - z_min)
+                # Create color gradient from blue (close) to red (far)
+                colors = np.zeros((len(value), 4))
+                colors[:, 0] = z_norm  # Red increases with distance
+                colors[:, 2] = 1.0 - z_norm  # Blue decreases with distance
+                colors[:, 3] = 1.0  # Alpha
+            else:
+                colors = "white"
+        else:
+            colors = "white"
+            
+        self._point_cloud.set_data(value-self._offset, size=0.005, face_color=colors)
         self.annotation = None
 
     @property
