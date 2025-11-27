@@ -232,21 +232,23 @@ def visualize_stereo_depth():
             cv2.putText(right_disp, f"FPS: {fps}", (right_disp.shape[1] - 100, 30),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
             
-            # Add focal length info to point cloud
+            # Add labels to help identify views
+            cv2.putText(depth_small, "DEPTH MAP", (depth_small.shape[1]//2 - 50, depth_small.shape[0] - 10),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            cv2.putText(pc_small, "POINT CLOUD", (10, pc_small.shape[0] - 10),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
             cv2.putText(pc_small, f"Focal: {focal_length:.0f}px", (10, 20),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
             
             # Stack layout: camera on top, depth and point cloud side-by-side below
+            # First stack depth and point cloud horizontally
             bottom_row = np.hstack([depth_small, pc_small])
             
-            # Pad bottom row if needed to match camera width
-            if bottom_row.shape[1] < right_disp.shape[1]:
-                pad_width = right_disp.shape[1] - bottom_row.shape[1]
-                padding = np.zeros((bottom_row.shape[0], pad_width, 3), dtype=np.uint8)
-                bottom_row = np.hstack([bottom_row, padding])
-            elif bottom_row.shape[1] > right_disp.shape[1]:
-                bottom_row = bottom_row[:, :right_disp.shape[1]]
+            # Adjust bottom row width to exactly match camera width
+            if bottom_row.shape[1] != right_disp.shape[1]:
+                bottom_row = cv2.resize(bottom_row, (right_disp.shape[1], bottom_row.shape[0]), interpolation=cv2.INTER_NEAREST)
             
+            # Stack camera on top, bottom row below
             combined = np.vstack([right_disp, bottom_row])
             
             # Show single window
