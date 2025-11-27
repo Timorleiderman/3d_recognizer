@@ -60,6 +60,7 @@ def visualize_stereo_depth():
     print("  Press '+' to increase focal length (objects closer)")
     print("  Press '-' to decrease focal length (objects farther)")
     print("  Press 'r' to reset to default")
+    print("  Press 'f' to toggle frame skip (faster/slower)")
     print("  Press 'd' to show disparity info")
     
     cam = StereoCamera("GXIVISION", camera_index=0, width=2560, height=720)
@@ -188,6 +189,13 @@ def visualize_stereo_depth():
             cv2.putText(right_disp, "RIGHT CAMERA", (10, 20),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
             
+            # Calculate FPS
+            frame_count += 1
+            if time.time() - fps_time >= 1.0:
+                fps = frame_count
+                frame_count = 0
+                fps_time = time.time()
+            
             # Depth map with stats
             valid_depth = depth_map[depth_map > 0]
             if len(valid_depth) > 0:
@@ -202,8 +210,8 @@ def visualize_stereo_depth():
                 cv2.putText(depth_small, "No depth - improve light", (10, 20),
                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
             
-            # Focal length info
-            cv2.putText(pc_small, f"F: {focal_length:.0f}px (+/-)", (10, 20),
+            # FPS and focal length info
+            cv2.putText(pc_small, f"F: {focal_length:.0f}px (+/-) FPS: {fps}", (10, 20),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
             
             # Stack in 2x2 grid
@@ -227,6 +235,10 @@ def visualize_stereo_depth():
             elif key == ord('r'):
                 focal_length = 350.0
                 print(f"Reset focal length: {focal_length:.0f}px")
+            elif key == ord('f'):
+                # Toggle frame skip
+                frame_skip = 1 if frame_skip == 2 else 2
+                print(f"Frame skip: {frame_skip} (faster)" if frame_skip == 2 else "Frame skip: 1 (slower, better)")
             elif key == ord('d'):
                 show_stats = not show_stats
                 if show_stats:
