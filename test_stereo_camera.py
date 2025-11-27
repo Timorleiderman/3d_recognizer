@@ -52,7 +52,8 @@ def test_stereo_camera():
     try:
         from camera.stereo_camera import StereoCamera
         
-        cam = StereoCamera("GXIVISION", camera_index=0, width=width, height=height)
+        # Force stereo resolution regardless of what was detected
+        cam = StereoCamera("GXIVISION", camera_index=0, width=2560, height=720)
         cam.start()
         
         print("✓ Stereo camera started")
