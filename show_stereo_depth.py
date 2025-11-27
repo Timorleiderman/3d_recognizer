@@ -77,7 +77,6 @@ def visualize_stereo_depth():
     print("  Press '+' to increase focal length (objects closer)")
     print("  Press '-' to decrease focal length (objects farther)")
     print("  Press 'r' to reset to default")
-    print("  Press 'f' to toggle frame skip (faster/slower)")
     print("  Press 'd' to show disparity info")
     
     cam = StereoCamera("GXIVISION", camera_index=0, width=2560, height=720)
@@ -99,8 +98,7 @@ def visualize_stereo_depth():
     fps_time = time.time()
     fps = 0
     
-    # Skip frames for faster display (process every Nth frame)
-    frame_skip = 3  # Process every 3rd frame (faster default)
+    # Process every frame for smooth 30fps
     frame_counter = 0
     
     # Cache last results
@@ -116,19 +114,19 @@ def visualize_stereo_depth():
             if not ret:
                 continue
             
-            # Split stereo pair (always needed for display)
+            # Split stereo pair
             left, right = cam._split_stereo_image(frame)
             
-            # Skip depth computation on some frames for speed
-            compute_depth = (frame_counter % frame_skip == 0)
+            # Process every frame
+            compute_depth = True
             
             # Compute depth only on selected frames
             if compute_depth:
                 # Update camera focal length if changed
                 cam._focal_length_px = focal_length
                 
-                # Downscale more aggressively for speed (4x faster)
-                scale_factor = 0.35
+                # Downscale for maximum speed
+                scale_factor = 0.25
                 left_small = cv2.resize(left, None, fx=scale_factor, fy=scale_factor, interpolation=cv2.INTER_AREA)
                 right_small = cv2.resize(right, None, fx=scale_factor, fy=scale_factor, interpolation=cv2.INTER_AREA)
                 
@@ -165,9 +163,9 @@ def visualize_stereo_depth():
                 depth_color[~valid_depth_mask] = [0, 0, 0]
                 last_depth_color = depth_color
                 
-                # 3. Get point cloud (extreme downsampling for speed)
+                # 3. Get point cloud (maximum downsampling for 30fps)
                 try:
-                    point_cloud = cam._depth_map_to_point_cloud(depth_map, left, downsample=30)
+                    point_cloud = cam._depth_map_to_point_cloud(depth_map, left, downsample=40)
                     pc_vis = create_point_cloud_image(point_cloud)
                     last_pc_vis = pc_vis
                 except Exception as e:
@@ -250,17 +248,6 @@ def visualize_stereo_depth():
             elif key == ord('r'):
                 focal_length = 350.0
                 print(f"Reset focal length: {focal_length:.0f}px")
-            elif key == ord('f'):
-                # Cycle through frame skip modes
-                if frame_skip == 1:
-                    frame_skip = 3
-                    print("Frame skip: 3 (faster)")
-                elif frame_skip == 3:
-                    frame_skip = 5
-                    print("Frame skip: 5 (fastest)")
-                else:
-                    frame_skip = 1
-                    print("Frame skip: 1 (best quality, slower)")
             elif key == ord('d'):
                 show_stats = not show_stats
                 if show_stats:
