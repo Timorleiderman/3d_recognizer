@@ -87,9 +87,23 @@ class StereoCamera(Camera):
         if not self._cap.isOpened():
             raise Exception(f"Could not open stereo camera at index {self._camera_index}")
         
-        # Set resolution for dual camera (2560x720)
+        # Try different methods to set stereo resolution
+        # Some cameras need FOURCC format or specific backend
+        
+        # Method 1: Try setting resolution directly
         self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._width)
         self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._height)
+        
+        # Method 2: Try MJPEG format (sometimes needed for high resolution)
+        self._cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M','J','P','G'))
+        self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._width)
+        self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._height)
+        
+        # Method 3: Try YUYV format
+        self._cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('Y','U','Y','V'))
+        self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._width)
+        self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._height)
+        
         self._cap.set(cv2.CAP_PROP_FPS, 30)
         
         # Verify resolution
@@ -98,6 +112,23 @@ class StereoCamera(Camera):
         
         if actual_width != self._width or actual_height != self._height:
             print(f"Warning: Requested {self._width}x{self._height}, got {actual_width}x{actual_height}")
+            
+            # Check if this might be a dual-camera setup on separate devices
+            if actual_width == 640 and actual_height == 480:
+                print("\n⚠️  Camera not in stereo mode!")
+                print("\nDiagnostics:")
+                print("  Run: python3 diagnose_camera.py")
+                print("\nQuick fixes to try:")
+                print("  1. Ensure camera is USB 3.0 connected (blue port)")
+                print("  2. Try: v4l2-ctl -d /dev/video0 --set-fmt-video=width=2560,height=720,pixelformat=MJPG")
+                print("  3. Check if camera has separate video devices:")
+                print("     ls -la /dev/video*")
+                print("\nContinuing with test mode (limited functionality)...")
+                
+                # Adjust parameters for lower resolution
+                # Scale down focal length proportionally
+                self._focal_length_px = self._focal_length_px * (actual_width / 1280.0)
+                
             self._width = actual_width
             self._height = actual_height
         
@@ -127,14 +158,26 @@ class StereoCamera(Camera):
         The GXIVISION camera provides side-by-side images.
         
         Args:
-            frame: Combined stereo image (2560x720)
+            frame: Combined stereo image (2560x720) or fallback single image
             
         Returns:
-            (left_image, right_image) each 1280x720
+            (left_image, right_image) each 1280x720 or simulated pair
         """
-        half_width = frame.shape[1] // 2
-        left = frame[:, :half_width]
-        right = frame[:, half_width:]
+        height, width = frame.shape[:2]
+        
+        # Normal stereo mode - side by side
+        if width >= 1280:
+            half_width = width // 2
+            left = frame[:, :half_width]
+            right = frame[:, half_width:]
+        else:
+            # Fallback mode for testing - simulate stereo from single image
+            # Shift the image slightly to create a pseudo-stereo pair
+            print("⚠️  Using single camera fallback mode (no real depth)")
+            shift = 20  # Pixel shift to simulate parallax
+            left = frame
+            right = np.roll(frame, shift, axis=1)  # Shift horizontally
+            
         return left, right
     
     def _compute_depth_map(self, left: np.ndarray, right: np.ndarray) -> np.ndarray:
