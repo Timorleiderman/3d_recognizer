@@ -53,16 +53,20 @@ class StereoCamera(Camera):
         
     def _setup_stereo_matcher(self):
         """Configure stereo block matching for depth computation"""
-        # Using StereoBM (faster) - can switch to StereoSGBM for better quality
-        self._stereo = cv2.StereoBM_create(numDisparities=16*5, blockSize=15)
-        
-        # Tune these parameters for your specific camera
-        self._stereo.setMinDisparity(0)
-        self._stereo.setNumDisparities(80)  # Must be divisible by 16
-        self._stereo.setBlockSize(15)  # Odd number, 5-21 typical
-        self._stereo.setSpeckleWindowSize(100)
-        self._stereo.setSpeckleRange(32)
-        self._stereo.setDisp12MaxDiff(1)
+        # Using StereoSGBM for better quality with GXIVISION camera
+        self._stereo = cv2.StereoSGBM_create(
+            minDisparity=0,
+            numDisparities=128,  # Higher for more depth resolution
+            blockSize=5,
+            P1=8 * 3 * 5**2,
+            P2=32 * 3 * 5**2,
+            disp12MaxDiff=1,
+            uniquenessRatio=5,   # Lower = more permissive
+            speckleWindowSize=50,
+            speckleRange=32,
+            preFilterCap=63,
+            mode=cv2.STEREO_SGBM_MODE_SGBM_3WAY
+        )
         
         # Alternative: Use StereoSGBM for better quality (slower)
         # self._stereo = cv2.StereoSGBM_create(
@@ -264,10 +268,10 @@ class StereoCamera(Camera):
                 # Get depth
                 z = depth_small[v, u]
                 
-                # Filter invalid depths
-                if z <= 0 or z > 2.0:  # Max 2 meters
+                # Filter invalid depths (more permissive for testing)
+                if z <= 0 or z > 5.0:  # Max 5 meters
                     continue
-                if z < 0.1:  # Min 10cm
+                if z < 0.05:  # Min 5cm
                     continue
                 
                 # Convert pixel coordinates to 3D
@@ -286,12 +290,14 @@ class StereoCamera(Camera):
         
         point_cloud = np.array(points, dtype=np.float32)
         
-        # Filter to region of interest (similar to RealSense range)
-        mask = (point_cloud[:, 2] > 0.05) & (point_cloud[:, 2] < 0.6)
+        # Filter to region of interest (more permissive for initial testing)
+        mask = (point_cloud[:, 2] > 0.05) & (point_cloud[:, 2] < 3.0)
         point_cloud = point_cloud[mask]
         
+        print(f"  Point cloud: {len(point_cloud)} points after filtering")
+        
         if len(point_cloud) < 100:
-            raise Exception("Insufficient valid points in depth range")
+            raise Exception(f"Insufficient valid points in depth range (got {len(point_cloud)})")
         
         return point_cloud
     
@@ -319,6 +325,14 @@ class StereoCamera(Camera):
         
         # Compute depth map
         depth_map = self._compute_depth_map(left, right)
+        
+        # Debug: Check depth map statistics
+        valid_depth = depth_map[depth_map > 0]
+        if len(valid_depth) > 0:
+            print(f"  Depth map: {len(valid_depth)} valid pixels, "
+                  f"range [{valid_depth.min():.2f}, {valid_depth.max():.2f}]m")
+        else:
+            print("  Depth map: No valid depth pixels!")
         
         # Convert to point cloud
         point_cloud = self._depth_map_to_point_cloud(depth_map, left, downsample=4)
