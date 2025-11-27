@@ -55,16 +55,27 @@ def visualize_stereo_depth():
     """Show real-time stereo depth computation with point cloud"""
     
     print("Starting stereo depth visualization...")
-    print("Press 'q' to quit")
+    print("\nControls:")
+    print("  Press 'q' to quit")
+    print("  Press '+' to increase focal length (objects closer)")
+    print("  Press '-' to decrease focal length (objects farther)")
+    print("  Press 'r' to reset to default")
+    print("  Press 'd' to show disparity info")
     
     cam = StereoCamera("GXIVISION", camera_index=0, width=2560, height=720)
     cam.start()
     
+    # Allow runtime adjustment of focal length
+    focal_length = cam._focal_length_px
+    baseline = cam._baseline_mm
+    show_stats = False
+    
     print("\nYou should see 4 views in a single window:")
     print("  1. TOP-LEFT: Left camera view")
     print("  2. TOP-RIGHT: Right camera view (notice slight parallax)")
-    print("  3. BOTTOM-LEFT: Depth map (color: blue=far, red=close)")
+    print("  3. BOTTOM-LEFT: Depth map (white=close, black=far)")
     print("  4. BOTTOM-RIGHT: 3D point cloud top-down view")
+    print(f"\nCurrent settings: Baseline={baseline*1000:.1f}mm, Focal={focal_length:.1f}px")
     
     while True:
         try:
@@ -75,6 +86,9 @@ def visualize_stereo_depth():
             
             # Split stereo pair
             left, right = cam._split_stereo_image(frame)
+            
+            # Update camera focal length if changed
+            cam._focal_length_px = focal_length
             
             # Compute depth
             depth_map = cam._compute_depth_map(left, right)
@@ -111,15 +125,26 @@ def visualize_stereo_depth():
             # Resize point cloud to match camera views
             pc_small = cv2.resize(pc_vis, (left_small.shape[1], left_small.shape[0]))
             
-            # Add labels
+            # Add labels and info
             cv2.putText(left_small, "LEFT CAMERA", (10, 30),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
             cv2.putText(right_small, "RIGHT CAMERA", (10, 30),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-            cv2.putText(depth_small, "DEPTH MAP (meters)", (10, 30),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-            cv2.putText(pc_small, "3D POINT CLOUD", (10, 30),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+            
+            # Depth map with stats
+            valid_depth = depth_map[depth_map > 0]
+            if len(valid_depth) > 0:
+                min_d, max_d, mean_d = valid_depth.min(), valid_depth.max(), valid_depth.mean()
+                depth_info = f"Depth: {min_d:.2f}-{max_d:.2f}m (avg {mean_d:.2f}m)"
+                cv2.putText(depth_small, depth_info, (10, 30),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            else:
+                cv2.putText(depth_small, "No depth data", (10, 30),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+            
+            # Focal length info
+            cv2.putText(pc_small, f"Focal: {focal_length:.0f}px (+/- keys)", (10, 30),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
             
             # Stack in 2x2 grid
             row1 = np.hstack([left_small, right_small])
@@ -129,9 +154,28 @@ def visualize_stereo_depth():
             # Show single window with all 4 views
             cv2.imshow('Stereo Vision - 4 Views', combined)
             
+            # Handle keyboard input
             key = cv2.waitKey(1) & 0xFF
             if key == ord('q'):
                 break
+            elif key == ord('+') or key == ord('='):
+                focal_length += 10
+                print(f"Focal length: {focal_length:.0f}px")
+            elif key == ord('-') or key == ord('_'):
+                focal_length = max(50, focal_length - 10)
+                print(f"Focal length: {focal_length:.0f}px")
+            elif key == ord('r'):
+                focal_length = 350.0
+                print(f"Reset focal length: {focal_length:.0f}px")
+            elif key == ord('d'):
+                show_stats = not show_stats
+                if show_stats:
+                    print(f"\nCurrent settings:")
+                    print(f"  Baseline: {baseline*1000:.1f}mm")
+                    print(f"  Focal length: {focal_length:.1f}px")
+                    if len(valid_depth) > 0:
+                        print(f"  Depth range: {min_d:.2f}m - {max_d:.2f}m")
+                        print(f"  Valid pixels: {len(valid_depth)}/{depth_map.size} ({100*len(valid_depth)/depth_map.size:.1f}%)")
                 
         except Exception as e:
             print(f"Error: {e}")
