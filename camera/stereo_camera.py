@@ -53,20 +53,21 @@ class StereoCamera(Camera):
         
     def _setup_stereo_matcher(self):
         """Configure stereo block matching for depth computation"""
-        # Optimized for GXIVISION 2.4mm 125° lens - faster processing
-        # Using StereoBM (faster) instead of SGBM
-        self._stereo = cv2.StereoBM_create(numDisparities=48, blockSize=11)
-        
-        # Tune parameters for speed on wide-angle lens
-        self._stereo.setMinDisparity(0)
-        self._stereo.setNumDisparities(48)  # Reduced for speed with wide lens
-        self._stereo.setBlockSize(11)  # Smaller block for faster processing
-        self._stereo.setSpeckleWindowSize(40)  # Reduced for speed
-        self._stereo.setSpeckleRange(16)  # Tighter filtering
-        self._stereo.setDisp12MaxDiff(3)
-        self._stereo.setPreFilterCap(31)
-        self._stereo.setTextureThreshold(5)  # Lower for wide-angle
-        self._stereo.setUniquenessRatio(10)  # Higher for better quality
+        # Use SGBM for better quality with wide-angle lens
+        # StereoBM struggles with wide FOV and distortion
+        self._stereo = cv2.StereoSGBM_create(
+            minDisparity=0,
+            numDisparities=96,  # Higher for wide-angle lens (must be divisible by 16)
+            blockSize=5,        # Smaller block for detail
+            P1=8 * 3 * 5**2,    # Smoothness penalty
+            P2=32 * 3 * 5**2,   # Smoothness penalty
+            disp12MaxDiff=1,
+            uniquenessRatio=5,  # Lower for more matches
+            speckleWindowSize=100,
+            speckleRange=32,
+            preFilterCap=63,
+            mode=cv2.STEREO_SGBM_MODE_SGBM_3WAY  # Better quality
+        )
         
         # Alternative: Use StereoSGBM for better quality (slower)
         # self._stereo = cv2.StereoSGBM_create(
