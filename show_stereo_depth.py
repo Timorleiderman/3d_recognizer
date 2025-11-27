@@ -16,38 +16,55 @@ def create_point_cloud_image(point_cloud, width=640, height=360):
                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
         return img
     
-    # Create blank image
+    # Create blank image with grid
     img = np.zeros((height, width, 3), dtype=np.uint8)
     
-    # Project 3D points to 2D (top-down view: X-Z plane)
-    x = point_cloud[:, 0]  # Left-right
-    z = point_cloud[:, 2]  # Depth (forward-back)
-    y = point_cloud[:, 1]  # Up-down (for coloring)
+    # Draw grid for reference
+    grid_color = (30, 30, 30)
+    for i in range(0, width, 50):
+        cv2.line(img, (i, 0), (i, height), grid_color, 1)
+    for i in range(0, height, 50):
+        cv2.line(img, (0, i), (width, i), grid_color, 1)
+    
+    # Project 3D points to 2D (SIDE view: Z-Y plane - like looking from the side)
+    z = point_cloud[:, 2]  # Depth (forward-back) -> X axis
+    y = point_cloud[:, 1]  # Up-down -> Y axis
+    x = point_cloud[:, 0]  # Left-right (for coloring)
     
     # Normalize to image coordinates
-    if len(x) > 0:
-        x_min, x_max = x.min(), x.max()
+    if len(z) > 0:
         z_min, z_max = z.min(), z.max()
+        y_min, y_max = y.min(), y.max()
         
-        if x_max - x_min > 0 and z_max - z_min > 0:
-            x_norm = ((x - x_min) / (x_max - x_min) * (width - 40) + 20).astype(np.int32)
-            z_norm = ((z - z_min) / (z_max - z_min) * (height - 40) + 20).astype(np.int32)
+        if z_max - z_min > 0 and y_max - y_min > 0:
+            # X axis = depth, flipped so close is left, far is right
+            z_norm = ((z - z_min) / (z_max - z_min) * (width - 80) + 40).astype(np.int32)
+            # Y axis = height, flipped so up is up
+            y_norm = ((y_max - y) / (y_max - y_min) * (height - 80) + 40).astype(np.int32)
             
-            # Color by height (Y axis)
-            y_norm = np.clip((y - y.min()) / (y.max() - y.min() + 1e-6) * 255, 0, 255).astype(np.uint8)
-            colors = cv2.applyColorMap(y_norm.reshape(-1, 1), cv2.COLORMAP_JET)
+            # Color by depth (Z) - close = red, far = blue
+            z_color = np.clip((z - z_min) / (z_max - z_min + 1e-6) * 255, 0, 255).astype(np.uint8)
+            colors = cv2.applyColorMap(255 - z_color.reshape(-1, 1), cv2.COLORMAP_JET)
             
-            # Draw points
-            for i in range(len(x_norm)):
-                if 0 <= x_norm[i] < width and 0 <= z_norm[i] < height:
+            # Draw points (larger for visibility)
+            for i in range(len(z_norm)):
+                if 0 <= z_norm[i] < width and 0 <= y_norm[i] < height:
                     color = tuple(map(int, colors[i][0]))
-                    cv2.circle(img, (x_norm[i], z_norm[i]), 1, color, -1)
+                    cv2.circle(img, (z_norm[i], y_norm[i]), 2, color, -1)
+    
+    # Add reference lines and labels
+    cv2.line(img, (40, height//2), (width-40, height//2), (80, 80, 80), 1)  # Horizon
+    cv2.line(img, (40, 40), (40, height-40), (80, 80, 80), 1)  # Left edge
     
     # Add info
-    cv2.putText(img, f"Points: {len(point_cloud)}", (10, 30),
+    cv2.putText(img, f"{len(point_cloud)} pts", (10, 25),
                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-    cv2.putText(img, "Top-down view (X-Z)", (10, 50),
-               cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+    cv2.putText(img, "Side view", (10, 45),
+               cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200), 1)
+    cv2.putText(img, f"<-{z_min:.1f}m", (45, height//2 + 15),
+               cv2.FONT_HERSHEY_SIMPLEX, 0.3, (150, 150, 150), 1)
+    cv2.putText(img, f"{z_max:.1f}m->", (width-100, height//2 + 15),
+               cv2.FONT_HERSHEY_SIMPLEX, 0.3, (150, 150, 150), 1)
     
     return img
 
@@ -71,10 +88,10 @@ def visualize_stereo_depth():
     baseline = cam._baseline_mm
     show_stats = False
     
-    print("\nYou should see 3 views in a single row:")
-    print("  1. LEFT: Right camera view")
-    print("  2. MIDDLE: Depth map (RED=close, BLUE=far)")
-    print("  3. RIGHT: 3D point cloud top-down view")
+    print("\nYou should see:")
+    print("  TOP: Camera view (larger)")
+    print("  BOTTOM-LEFT: Depth map (RED=close, BLUE=far)")
+    print("  BOTTOM-RIGHT: 3D point cloud side view")
     print(f"\nCurrent settings: Baseline={baseline*1000:.1f}mm, Focal={focal_length:.1f}px")
     
     # FPS tracking
@@ -173,13 +190,18 @@ def visualize_stereo_depth():
                     pc_vis = np.zeros((360, 640, 3), dtype=np.uint8)
                     valid_depth_mask = np.zeros_like(depth_map, dtype=bool)
             
-            # Resize for display (smaller = faster rendering)
-            scale = 0.35  # Larger since we're showing 3 views instead of 4
+            # Resize for display
+            scale = 0.5  # Larger camera view on top
             right_disp = cv2.resize(right, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
-            depth_small = cv2.resize(depth_color, None, fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST)
             
-            # Resize point cloud to match camera views
-            pc_small = cv2.resize(pc_vis, (right_disp.shape[1], right_disp.shape[0]), interpolation=cv2.INTER_NEAREST)
+            # Smaller views for depth and point cloud
+            scale_bottom = 0.5
+            depth_small = cv2.resize(depth_color, None, fx=scale_bottom, fy=scale_bottom, interpolation=cv2.INTER_NEAREST)
+            
+            # Match width of camera view for point cloud
+            pc_width = right_disp.shape[1] // 2
+            pc_height = depth_small.shape[0]
+            pc_small = cv2.resize(pc_vis, (pc_width, pc_height), interpolation=cv2.INTER_NEAREST)
             
             # Add labels and info
             cv2.putText(right_disp, "RIGHT CAMERA", (10, 20),
@@ -206,15 +228,29 @@ def visualize_stereo_depth():
                 cv2.putText(depth_small, "No depth - improve light", (10, 20),
                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
             
-            # FPS and focal length info
-            cv2.putText(pc_small, f"F: {focal_length:.0f}px (+/-) FPS: {fps}", (10, 20),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            # Add FPS info to camera view
+            cv2.putText(right_disp, f"FPS: {fps}", (right_disp.shape[1] - 100, 30),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
             
-            # Stack in 1x3 layout (right camera, depth, point cloud)
-            combined = np.hstack([right_disp, depth_small, pc_small])
+            # Add focal length info to point cloud
+            cv2.putText(pc_small, f"Focal: {focal_length:.0f}px", (10, 20),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
             
-            # Show single window with 3 views
-            cv2.imshow('Stereo Vision - Camera | Depth | Point Cloud', combined)
+            # Stack layout: camera on top, depth and point cloud side-by-side below
+            bottom_row = np.hstack([depth_small, pc_small])
+            
+            # Pad bottom row if needed to match camera width
+            if bottom_row.shape[1] < right_disp.shape[1]:
+                pad_width = right_disp.shape[1] - bottom_row.shape[1]
+                padding = np.zeros((bottom_row.shape[0], pad_width, 3), dtype=np.uint8)
+                bottom_row = np.hstack([bottom_row, padding])
+            elif bottom_row.shape[1] > right_disp.shape[1]:
+                bottom_row = bottom_row[:, :right_disp.shape[1]]
+            
+            combined = np.vstack([right_disp, bottom_row])
+            
+            # Show single window
+            cv2.imshow('Stereo Vision', combined)
             
             # Handle keyboard input
             key = cv2.waitKey(1) & 0xFF
