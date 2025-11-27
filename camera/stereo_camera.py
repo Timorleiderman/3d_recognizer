@@ -294,7 +294,7 @@ class StereoCamera(Camera):
         mask = (point_cloud[:, 2] > 0.05) & (point_cloud[:, 2] < 3.0)
         point_cloud = point_cloud[mask]
         
-        print(f"  Point cloud: {len(point_cloud)} points after filtering")
+        # print(f"  Point cloud: {len(point_cloud)} points after filtering")
         
         if len(point_cloud) < 100:
             raise Exception(f"Insufficient valid points in depth range (got {len(point_cloud)})")
@@ -326,13 +326,13 @@ class StereoCamera(Camera):
         # Compute depth map
         depth_map = self._compute_depth_map(left, right)
         
-        # Debug: Check depth map statistics
-        valid_depth = depth_map[depth_map > 0]
-        if len(valid_depth) > 0:
-            print(f"  Depth map: {len(valid_depth)} valid pixels, "
-                  f"range [{valid_depth.min():.2f}, {valid_depth.max():.2f}]m")
-        else:
-            print("  Depth map: No valid depth pixels!")
+        # Debug: Check depth map statistics (comment out for production)
+        # valid_depth = depth_map[depth_map > 0]
+        # if len(valid_depth) > 0:
+        #     print(f"  Depth map: {len(valid_depth)} valid pixels, "
+        #           f"range [{valid_depth.min():.2f}, {valid_depth.max():.2f}]m")
+        # else:
+        #     print("  Depth map: No valid depth pixels!")
         
         # Convert to point cloud
         point_cloud = self._depth_map_to_point_cloud(depth_map, left, downsample=4)
