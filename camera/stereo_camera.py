@@ -82,8 +82,7 @@ class StereoCamera(Camera):
         if self._running:
             return
         
-        # Try opening with explicit backend that supports format setting
-        # CAP_V4L2 is better for format control on Linux
+        # Open with V4L2 backend for better format control on Linux
         try:
             self._cap = cv2.VideoCapture(self._camera_index, cv2.CAP_V4L2)
         except:
@@ -92,31 +91,26 @@ class StereoCamera(Camera):
         if not self._cap.isOpened():
             raise Exception(f"Could not open stereo camera at index {self._camera_index}")
         
-        # Set format BEFORE setting resolution (critical for GXIVISION)
-        # MJPEG format supports 2560x720 @ 30fps
-        fourcc = cv2.VideoWriter_fourcc('M','J','P','G')
-        self._cap.set(cv2.CAP_PROP_FOURCC, fourcc)
+        # Check current settings first
+        current_width = int(self._cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        current_height = int(self._cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         
-        # Now set resolution and framerate
-        self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._width)
-        self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._height)
-        self._cap.set(cv2.CAP_PROP_FPS, 30)
+        print(f"Camera opened with: {current_width}x{current_height}")
         
-        # Sometimes need to release and reopen for settings to take effect
-        # Try reading a test frame first
-        ret, test_frame = self._cap.read()
-        if ret:
-            test_height, test_width = test_frame.shape[:2]
-            if test_width != self._width:
-                print(f"First attempt got {test_width}x{test_height}, reopening...")
-                self._cap.release()
-                
-                # Reopen and set again
-                self._cap = cv2.VideoCapture(self._camera_index, cv2.CAP_V4L2)
-                self._cap.set(cv2.CAP_PROP_FOURCC, fourcc)
-                self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._width)
-                self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._height)
-                self._cap.set(cv2.CAP_PROP_FPS, 30)
+        # Only set format if not already correct (to preserve v4l2-ctl settings)
+        if current_width != self._width or current_height != self._height:
+            print(f"Setting to {self._width}x{self._height}...")
+            
+            # Set MJPEG format
+            fourcc = cv2.VideoWriter_fourcc('M','J','P','G')
+            self._cap.set(cv2.CAP_PROP_FOURCC, fourcc)
+            
+            # Set resolution
+            self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._width)
+            self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._height)
+            self._cap.set(cv2.CAP_PROP_FPS, 30)
+        else:
+            print("Resolution already correct!")
         
         # Verify resolution
         actual_width = int(self._cap.get(cv2.CAP_PROP_FRAME_WIDTH))
