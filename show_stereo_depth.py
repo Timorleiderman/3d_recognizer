@@ -80,14 +80,8 @@ def visualize_stereo_depth():
             depth_map = cam._compute_depth_map(left, right)
             
             # Create visualizations
-            # 1. Disparity visualization (colorized)
-            disparity = cam._stereo.compute(
-                cv2.cvtColor(left, cv2.COLOR_BGR2GRAY),
-                cv2.cvtColor(right, cv2.COLOR_BGR2GRAY)
-            )
-            disparity_vis = cv2.normalize(disparity, None, 0, 255, cv2.NORM_MINMAX)
-            disparity_vis = disparity_vis.astype(np.uint8)
-            disparity_color = cv2.applyColorMap(disparity_vis, cv2.COLORMAP_JET)
+            # Note: We already computed depth_map which includes disparity computation
+            # No need to recompute disparity separately
             
             # 2. Actual depth map visualization (grayscale)
             depth_vis = np.zeros_like(depth_map)
@@ -99,17 +93,17 @@ def visualize_stereo_depth():
             # Convert grayscale to BGR for consistent stacking
             depth_color = cv2.cvtColor(depth_vis, cv2.COLOR_GRAY2BGR)
             
-            # 3. Get point cloud
+            # 3. Get point cloud (with higher downsampling for speed)
             try:
-                point_cloud = cam._depth_map_to_point_cloud(depth_map, left, downsample=6)
+                point_cloud = cam._depth_map_to_point_cloud(depth_map, left, downsample=12)
                 pc_vis = create_point_cloud_image(point_cloud)
             except Exception as e:
                 pc_vis = np.zeros((360, 640, 3), dtype=np.uint8)
                 cv2.putText(pc_vis, f"Error: {str(e)[:40]}", (10, 180),
                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
             
-            # Resize for display
-            scale = 0.5
+            # Resize for display (larger scale = less processing)
+            scale = 0.4
             left_small = cv2.resize(left, None, fx=scale, fy=scale)
             right_small = cv2.resize(right, None, fx=scale, fy=scale)
             depth_small = cv2.resize(depth_color, None, fx=scale, fy=scale)
