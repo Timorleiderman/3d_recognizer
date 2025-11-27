@@ -99,6 +99,10 @@ class StereoCamera(Camera):
         # Verify resolution
         actual_width = int(self._cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         actual_height = int(self._cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        actual_fourcc = int(self._cap.get(cv2.CAP_PROP_FOURCC))
+        fourcc_str = "".join([chr((actual_fourcc >> 8 * i) & 0xFF) for i in range(4)])
+        
+        print(f"Camera format: {fourcc_str}, Resolution: {actual_width}x{actual_height}")
         
         if actual_width != self._width or actual_height != self._height:
             print(f"Warning: Requested {self._width}x{self._height}, got {actual_width}x{actual_height}")
