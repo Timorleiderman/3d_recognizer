@@ -28,23 +28,36 @@ def auto_connect_camera() -> Camera:
     
     # Try stereo camera (GXIVISION or similar)
     # Stereo cameras typically provide 2560x720 resolution (dual 1280x720)
+    # We need to try setting the resolution first to detect stereo capability
     try:
         import cv2
         cap = cv2.VideoCapture(0)
         if cap.isOpened():
+            # Get initial resolution
+            initial_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            initial_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            
+            # Try to set stereo resolution (2560x720)
+            # Many stereo cameras default to 640x480 but support 2560x720
+            fourcc = cv2.VideoWriter_fourcc('M','J','P','G')
+            cap.set(cv2.CAP_PROP_FOURCC, fourcc)
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 2560)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+            
+            # Check if stereo resolution was accepted
             width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             cap.release()
             
-            # Detect stereo camera by resolution pattern
+            # If camera accepted 2560x720, it's a stereo camera
             if width >= 2560 and height == 720:
                 print(f"Detected stereo camera: {width}x{height}")
                 print("Using real depth from stereo vision")
                 return StereoCamera("Stereo Camera", camera_index=0, 
                                    width=width, height=height)
             else:
-                # Regular USB camera
-                print(f"Detected USB camera: {width}x{height}")
+                # Camera doesn't support stereo resolution - regular USB camera
+                print(f"Detected USB camera: {initial_width}x{initial_height}")
                 print("WARNING: USB camera provides simulated 3D data, not real depth.")
                 return USBCamera("USB Camera", camera_index=0)
     except Exception as e:
