@@ -97,11 +97,11 @@ class StereoCamera(Camera):
         
         print(f"Camera opened with: {current_width}x{current_height}")
         
-        # Only set format if not already correct (to preserve v4l2-ctl settings)
+        # Always try to set to requested resolution
         if current_width != self._width or current_height != self._height:
             print(f"Setting to {self._width}x{self._height}...")
             
-            # Set MJPEG format
+            # Set MJPEG format first
             fourcc = cv2.VideoWriter_fourcc('M','J','P','G')
             self._cap.set(cv2.CAP_PROP_FOURCC, fourcc)
             
@@ -109,6 +109,11 @@ class StereoCamera(Camera):
             self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._width)
             self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._height)
             self._cap.set(cv2.CAP_PROP_FPS, 30)
+            
+            # Verify it worked
+            new_width = int(self._cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            new_height = int(self._cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            print(f"After setting: {new_width}x{new_height}")
         else:
             print("Resolution already correct!")
         
