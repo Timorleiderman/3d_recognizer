@@ -17,19 +17,27 @@ class VispyMarkers(vispy.scene.Markers):
                  face_color='white') -> None:
         if pos is None:
             pos_non_optional: np.ndarray = np.array([[0., 0., 0.]])
+            face_color_sampled = face_color
         else:
             if len(pos) == 0:
                 pos_non_optional = pos
+                face_color_sampled = face_color
             else:
                 selection_size = min(10000, len(pos))
                 selection = np.random.choice(
                     len(pos), size=selection_size, replace=False
                 )
                 pos_non_optional = pos[selection, :]
+                
+                # Also downsample face_color if it's an array
+                if isinstance(face_color, np.ndarray) and len(face_color.shape) > 1:
+                    face_color_sampled = face_color[selection, :]
+                else:
+                    face_color_sampled = face_color
 
         super().set_data(
             pos=pos_non_optional, edge_width=0.0,
-            edge_color=None, face_color=face_color, size=size
+            edge_color=None, face_color=face_color_sampled, size=size
         )
         if pos is None:
             self.visible = False
