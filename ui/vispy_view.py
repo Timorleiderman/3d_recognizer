@@ -92,7 +92,8 @@ class VispyView:
 
         self.view.camera = ArcballCamera(fov=0)
 
-        self.view.camera._quaternion = Quaternion(0.707, 0.707, 0.0, 0.0)
+        # Flip the camera orientation (was upside down)
+        self.view.camera._quaternion = Quaternion(0.707, -0.707, 0.0, 0.0)
         self.view.camera.depth_value = 1.0
         # Set initial scale factor to fit view nicely
         self.view.camera.scale_factor = 0.5  # Balanced zoom level
