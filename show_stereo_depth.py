@@ -90,8 +90,18 @@ def visualize_stereo_depth():
             # Update camera focal length if changed
             cam._focal_length_px = focal_length
             
-            # Compute depth
-            depth_map = cam._compute_depth_map(left, right)
+            # Downscale for faster stereo matching (2x faster)
+            scale_factor = 0.5
+            left_small = cv2.resize(left, None, fx=scale_factor, fy=scale_factor, interpolation=cv2.INTER_AREA)
+            right_small = cv2.resize(right, None, fx=scale_factor, fy=scale_factor, interpolation=cv2.INTER_AREA)
+            
+            # Compute depth at lower resolution
+            depth_map_small = cam._compute_depth_map(left_small, right_small)
+            
+            # Upscale depth map back to original size
+            depth_map = cv2.resize(depth_map_small, (left.shape[1], left.shape[0]), interpolation=cv2.INTER_NEAREST)
+            # Adjust depth values for scale
+            depth_map *= (1.0 / scale_factor)
             
             # Create visualizations
             # Note: We already computed depth_map which includes disparity computation
@@ -119,50 +129,50 @@ def visualize_stereo_depth():
             # Black out invalid regions
             depth_color[~valid_depth_mask] = [0, 0, 0]
             
-            # 3. Get point cloud (with higher downsampling for speed)
+            # 3. Get point cloud (very high downsampling for speed)
             try:
-                point_cloud = cam._depth_map_to_point_cloud(depth_map, left, downsample=12)
+                point_cloud = cam._depth_map_to_point_cloud(depth_map, left, downsample=20)
                 pc_vis = create_point_cloud_image(point_cloud)
             except Exception as e:
                 pc_vis = np.zeros((360, 640, 3), dtype=np.uint8)
                 cv2.putText(pc_vis, f"Error: {str(e)[:40]}", (10, 180),
                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
             
-            # Resize for display (larger scale = less processing)
-            scale = 0.4
-            left_small = cv2.resize(left, None, fx=scale, fy=scale)
-            right_small = cv2.resize(right, None, fx=scale, fy=scale)
-            depth_small = cv2.resize(depth_color, None, fx=scale, fy=scale)
+            # Resize for display (smaller = faster rendering)
+            scale = 0.3
+            left_disp = cv2.resize(left, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+            right_disp = cv2.resize(right, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+            depth_small = cv2.resize(depth_color, None, fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST)
             
             # Resize point cloud to match camera views
-            pc_small = cv2.resize(pc_vis, (left_small.shape[1], left_small.shape[0]))
+            pc_small = cv2.resize(pc_vis, (left_disp.shape[1], left_disp.shape[0]), interpolation=cv2.INTER_NEAREST)
             
             # Add labels and info
-            cv2.putText(left_small, "LEFT CAMERA", (10, 30),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-            cv2.putText(right_small, "RIGHT CAMERA", (10, 30),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+            cv2.putText(left_disp, "LEFT CAMERA", (10, 20),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+            cv2.putText(right_disp, "RIGHT CAMERA", (10, 20),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
             
             # Depth map with stats
             valid_depth = depth_map[depth_map > 0]
             if len(valid_depth) > 0:
-                min_d, max_d, mean_d = valid_depth.min(), valid_depth.max(), valid_depth.mean()
+                min_d, max_d = valid_depth.min(), valid_depth.max()
                 coverage = 100.0 * len(valid_depth) / depth_map.size
                 depth_info = f"{min_d:.2f}-{max_d:.2f}m ({coverage:.0f}%)"
-                cv2.putText(depth_small, depth_info, (10, 30),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-                cv2.putText(depth_small, "RED=close BLUE=far", (10, 50),
+                cv2.putText(depth_small, depth_info, (10, 20),
                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+                cv2.putText(depth_small, "RED=close BLUE=far", (10, 35),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 255, 255), 1)
             else:
-                cv2.putText(depth_small, "No depth data - improve lighting", (10, 30),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+                cv2.putText(depth_small, "No depth - improve light", (10, 20),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
             
             # Focal length info
-            cv2.putText(pc_small, f"Focal: {focal_length:.0f}px (+/- keys)", (10, 30),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            cv2.putText(pc_small, f"F: {focal_length:.0f}px (+/-)", (10, 20),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
             
             # Stack in 2x2 grid
-            row1 = np.hstack([left_small, right_small])
+            row1 = np.hstack([left_disp, right_disp])
             row2 = np.hstack([depth_small, pc_small])
             combined = np.vstack([row1, row2])
             
