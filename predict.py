@@ -9,7 +9,8 @@ from dataset import Dataset, DatasetMerged
 from randlanet import Model
 from ui import VispyView, Label
 
-vispy.use("tkinter")
+# vispy.use() is now called in main.py before importing this module
+# to properly configure the backend for Jetson Nano and other platforms
 
 class Predictor:
 
@@ -82,7 +83,24 @@ def visualize(
 
 
 if __name__ == '__main__':
+    import os
     from argparse import ArgumentParser
+    
+    # Import Jetson fixes if available
+    try:
+        import jetson_fix
+        jetson_fix.apply_jetson_fixes()
+    except Exception:
+        pass
+    
+    # Unset EGL platform to avoid conflicts with Tkinter
+    if 'PYOPENGL_PLATFORM' in os.environ:
+        del os.environ['PYOPENGL_PLATFORM']
+    
+    try:
+        vispy.use("tkinter")
+    except Exception as e:
+        print(f"Warning: Could not set Tkinter backend: {e}")
 
     parser = ArgumentParser(
         "Predictor",

@@ -1,9 +1,17 @@
 import sys
+import os
 import tkinter as tk
 from datetime import datetime
 from pathlib import Path
 from time import time
 from typing import Optional
+
+# Import Jetson fixes BEFORE vispy/OpenGL to patch known issues
+try:
+    import jetson_fix
+    jetson_fix.apply_jetson_fixes()
+except Exception as e:
+    print(f"Note: Jetson fixes not applied: {e}")
 
 import vispy
 
@@ -13,7 +21,17 @@ from predict import Predictor
 from train import train_async
 from ui import VispyCanvas, DataCapturingFrame, PredictionFrame, TrainFrame
 
-vispy.use("tkinter")
+# Configure backend for Jetson Nano
+# Since we're using Tkinter UI, we must use Tkinter backend for Vispy
+# Unset PYOPENGL_PLATFORM to avoid EGL/GLX conflicts
+if 'PYOPENGL_PLATFORM' in os.environ:
+    del os.environ['PYOPENGL_PLATFORM']
+
+try:
+    vispy.use("tkinter")
+    print("Using Tkinter backend")
+except Exception as e:
+    print(f"Warning: Could not set Tkinter backend: {e}")
 
 
 MODELS_PATH = Path("models")
